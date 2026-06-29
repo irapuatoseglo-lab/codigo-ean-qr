@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Productos con Códigos QR</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #006D3B;
+            --secondary: #64748b;
+            --bg: #f8fafc;
+            --white: #ffffff;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: #1e293b;
+            margin: 0;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 750px;
+            margin: 0 auto;
+            background: var(--white);
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-logo {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header-logo img {
+            max-width: 180px;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        h1 { text-align: center; color: #0f172a; margin-bottom: 20px; }
+
+        .uso-instrucciones {
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+            color: #475569;
+            border-left: 4px solid var(--primary);
+        }
+
+        .search-group { display: flex; flex-direction: column; gap: 1rem; }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+
+        .buttons { display: flex; gap: 10px; }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn-search { background: var(--primary); color: white; }
+        .btn-clear { background: #e2e8f0; color: var(--secondary); }
+
+        .results-list { margin-top: 2rem; }
+
+        .item-card {
+            background: var(--white);
+            border: 1px solid #e2e8f0;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: transform 0.2s;
+        }
+
+        .item-card:hover { transform: translateY(-2px); border-color: var(--primary); }
+
+        .qr-container {
+            background: #f8fafc;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-width: 100px;
+        }
+
+        .item-info { flex-grow: 1; }
+        .item-desc { display: block; font-weight: 700; color: #1e293b; margin-bottom: 5px; font-size: 1.1rem; }
+        .item-details { font-size: 0.9rem; color: var(--secondary); margin-bottom: 10px; }
+
+        .btn-copy {
+            background: #f1f5f9;
+            color: var(--primary);
+            padding: 8px 15px;
+            font-size: 0.85rem;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            width: fit-content;
+        }
+
+        .btn-copy:hover { background: var(--primary); color: white; }
+
+        .copy-toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1e293b;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            display: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Buscador de Inventario</h1>
+
+    <div class="header-logo">
+        
+    </div>
+
+    <div class="uso-instrucciones">
+        <strong>💡 Instrucciones:</strong>
+        <ul>
+            <li>Busca por <strong>Nombre, SKU o EAN</strong>.</li>
+            <li>El sistema generará un <strong>Código QR</strong> único por producto.</li>
+            <li>Haz clic en <strong>📋 Copiar SKU</strong> para guardarlo en tu portapapeles.</li>
+        </ul>
+    </div>
+
+    <div class="search-group">
+        <input type="text" id="searchInput" placeholder="Ej: Danonino o 196696..." onkeyup="handleKeyUp(event)">
+        <div class="buttons">
+            <button class="btn-search" onclick="ejecutarBusqueda()">🔍 Buscar Productos</button>
+            <button class="btn-clear" onclick="limpiar()">Limpiar</button>
+        </div>
+    </div>
+
+    <div id="counter" style="margin-top: 1.5rem; font-weight: bold; color: var(--primary);"></div>
+    <div id="resultsList" class="results-list"></div>
+</div>
+
+<div id="toast" class="copy-toast">✅ SKU copiado con éxito</div>
+
+<script>
+    const inventario = [
+        { sku: "196696", desc:"DANONINO MAXI FRESA 336G (4X84G) EX", ean: "7501032335052"},
+        { sku: "196697", desc:"DANONINO STRAWBERRY 168G (4X42G) EX", ean: "7501032397944"},
+        { sku: "196698", desc:"DANONINO POUCH STRAWBERRY 70G EXPOR", ean: "7501032397845"},
+        { sku: "196725", desc:"SILK ALM ORIGINAL S/A 190ML EX N051", ean: "7506443102552"},
+        { sku: "196762", desc:"SILK COCO MONK FRUIT 946ML EX N051", ean: "7506443104303"},
+        { sku: "196763", desc:"SILK ALM VAINILLA 5676ML (6x946) N0", ean: "025293002654"}
+    ];
+
+    function ejecutarBusqueda() {
+        const input = document.getElementById('searchInput').value.trim().toLowerCase();
+        const listado = document.getElementById('resultsList');
+        const contador = document.getElementById('counter');
+        
+        if (!input) return;
+
+        const keywords = input.split(" ");
+        const filtrados = inventario.filter(prod => {
+            const contenido = (prod.sku + " " + prod.desc + " " + prod.ean).toLowerCase();
+            return keywords.every(key => contenido.includes(key));
+        });
+
+        listado.innerHTML = "";
+        if (filtrados.length > 0) {
+            contador.innerText = `${filtrados.length} producto(s) encontrado(s):`;
+            filtrados.forEach((item, index) => {
+                const qrId = `qrcode-${index}`;
+                const div = document.createElement('div');
+                div.className = 'item-card';
+                div.innerHTML = `
+                    <div class="qr-container" id="${qrId}"></div>
+                    <div class="item-info">
+                        <span class="item-desc">${item.desc}</span>
+                        <div class="item-details">
+                            <strong>SKU:</strong> ${item.sku} | <strong>EAN:</strong> ${item.ean}
+                        </div>
+                        <button class="btn-copy" onclick="copiarTexto('${item.sku}')">📋 Copiar SKU</button>
+                    </div>
+                `;
+                listado.appendChild(div);
+
+                // Generar el QR después de añadir el elemento al DOM
+                new QRCode(document.getElementById(qrId), {
+                    text: item.sku,
+                    width: 80,
+                    height: 80,
+                    colorDark : "#000000",
+                    colorLight : "#f8fafc",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+            });
+        } else {
+            contador.innerText = "";
+            listado.innerHTML = `<div style="text-align:center; color:#ef4444; padding:20px;">No se encontraron coincidencias.</div>`;
+        }
+    }
+
+    function copiarTexto(texto) {
+        navigator.clipboard.writeText(texto).then(() => {
+            const toast = document.getElementById('toast');
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        });
+    }
+
+    function handleKeyUp(e) { if (e.key === 'Enter') ejecutarBusqueda(); }
+
+    function limpiar() {
+        document.getElementById('searchInput').value = "";
+        document.getElementById('resultsList').innerHTML = "";
+        document.getElementById('counter').innerText = "";
+        document.getElementById('searchInput').focus();
+    }
+</script>
+
+</body>
+</html>
